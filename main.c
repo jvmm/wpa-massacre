@@ -48,25 +48,24 @@ main (int argc, char **argv)
 		fprintf(stderr, "pathname of wordlist too long\n");
 		MPI_Abort(MPI_COMM_WORLD, 1);
 	      }
-	      memcpy(wordlist, optarg, strlen(optarg));
+	      
+	      memcpy(wordlist, optarg, strlen(optarg)+1);
 	      break;
 	    case 'c':
 	      if (strlen(optarg) > MAXLEN) {
 		fprintf(stderr, "pathname of .cap file too long\n");
 		MPI_Abort(MPI_COMM_WORLD, 1);
 	      }
-	      memcpy(cap_file, optarg, strlen(optarg));
+	      memcpy(cap_file, optarg, strlen(optarg)+1);
 	      break;
 	    case 'p':
 	      if (strlen(optarg) > MAXLEN) {
 		fprintf(stderr, "cache-prefix too long\n");
 		MPI_Abort(MPI_COMM_WORLD, 1);
 	      }
-	      memcpy(cache_prefix, optarg, strlen(optarg));
+	      memcpy(cache_prefix, optarg, strlen(optarg)+1);
 	      break;
 	    case 'b':
-	      /* block_size = strtol(optarg, NULL, 10); */
-	      /* printf("block_size = %d\n", (int) block_size); */
 	      errno = 0;
 	      block_size = strtol(optarg, NULL, 0);
 	      if (errno)
@@ -90,10 +89,11 @@ main (int argc, char **argv)
 
 
       if ((fd_wordlist = open(wordlist, O_RDONLY)) == -1) {
-	perror("open wordlist");
+	fprintf(stderr, "%s ", wordlist);
+	perror(NULL);
 	MPI_Abort(MPI_COMM_WORLD, 1);
       }
-      printf("using block size %u\n", (unsigned) block_size);
+      printf("using block size %lu\n", (unsigned long) block_size);
     }
   /* dispatch  */
   if (comm_rank == 0)
@@ -103,7 +103,7 @@ main (int argc, char **argv)
       MPI_Bcast(cache_prefix, MAXLEN, MPI_CHAR, 0, MPI_COMM_WORLD);
       MPI_Bcast(&block_size, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
-      master(fd_wordlist);
+      master(fd_wordlist, block_size);
     }
   else
     {
@@ -114,19 +114,22 @@ main (int argc, char **argv)
 }
 
 ssize_t read_failsafe (int fd, void *buf, size_t len)
-/* like read(2) but checks for EOF, EINTR and fatal read errors  */
+/* like read(2) but checks for EINTR and fatal read errors  */
 {
   void *buf_tmp;	/* we want to leave buf unchanged */
   ssize_t ret;
   size_t len_tmp = len;
   buf_tmp = buf;
-  while (len_tmp != 0
-	 && (ret = read (fd, buf_tmp, len_tmp)) != 0)
+  while (len_tmp != 0 && (ret = read (fd, buf_tmp, len_tmp)) != 0)
     {
       if (ret == -1)
 	{
-	  if (errno == EINTR) continue; perror ("read"); return ret;}
-      len_tmp -= ret; buf_tmp += ret;}
+	  if (errno == EINTR) continue; 
+	  perror ("read"); 
+	  return ret;
+	}
+      len_tmp -= ret; buf_tmp += ret;
+    }
   return len - len_tmp;	/* return number of read bytes */
 }
 
