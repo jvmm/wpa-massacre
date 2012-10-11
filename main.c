@@ -6,9 +6,11 @@ main (int argc, char **argv)
 {
   int len;
   int comm_rank, comm_size, fd_wordlist;
-  size_t block_size = 4096;
+  int block_size = 4096;
   char hostname[MAXLEN], wordlist[MAXLEN], cap_file[MAXLEN],
     cache_prefix[MAXLEN];
+  
+  
   MPI_Init (&argc, &argv);
   MPI_Comm_rank (MPI_COMM_WORLD, &comm_rank);
   MPI_Comm_size (MPI_COMM_WORLD, &comm_size);
@@ -20,6 +22,8 @@ main (int argc, char **argv)
   /* rank 0 parses command-line arguments */
   if (comm_rank == 0)
     {
+      /* printf("pid root = %d\n",getpid()); */
+      /* sleep(10); */
       printf ("rank 0 is on node %s\nnumber of workers is %d\n", hostname,
 	      comm_size - 1);
       if (comm_size < 2)
@@ -73,7 +77,7 @@ main (int argc, char **argv)
 		  perror("strtol");
 		  MPI_Abort(MPI_COMM_WORLD, 1);
 		}
-	      else if (block_size <= 0 || block_size == LONG_MAX)
+	      else if (block_size <= 0 || block_size == INT_MAX)
 		{
 		  fprintf(stderr, "invalid block size\n");
 		  MPI_Abort(MPI_COMM_WORLD, 1);
@@ -93,7 +97,7 @@ main (int argc, char **argv)
 	perror(NULL);
 	MPI_Abort(MPI_COMM_WORLD, 1);
       }
-      printf("using block size %lu\n", (unsigned long) block_size);
+      printf("using block size %d\n",  block_size);
     }
   /* dispatch  */
   if (comm_rank == 0)
@@ -101,7 +105,7 @@ main (int argc, char **argv)
       /* broadcast arguments to slaves*/
       MPI_Bcast(cap_file, MAXLEN, MPI_CHAR, 0, MPI_COMM_WORLD);
       MPI_Bcast(cache_prefix, MAXLEN, MPI_CHAR, 0, MPI_COMM_WORLD);
-      MPI_Bcast(&block_size, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+      MPI_Bcast(&block_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
       master(fd_wordlist, block_size);
     }

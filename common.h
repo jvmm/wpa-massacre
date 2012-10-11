@@ -14,15 +14,13 @@
 #include <mpi.h>
 
 #define MAXLEN 1000
-#define NOTHING_FOUND 'n'
-#define PW_FOUND 'p'
 #define TAG_BLOCK 'b'
 #define TAG_REQUEST 'r'
 #define TAG_PW 'w'
 #define SLAVE_BUSY 1
 #define SLAVE_IDLE 0
 
-void master(int fd_wordlist, size_t block_size);
+void master(int fd_wordlist, int block_size);
 void slave(void);
 ssize_t read_failsafe(int fd, void* buf, size_t len);
 ssize_t write_failsafe(int fd, void* buf, size_t len);
