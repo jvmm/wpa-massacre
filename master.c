@@ -37,6 +37,7 @@ void master(int fd_wordlist, int block_size)
       fprintf(stderr, "using %lld byte wordlist\n", (long long) size_of_wordlist);
     }
   }
+  
     /*******************/
     /* start main loop */
     /*******************/
