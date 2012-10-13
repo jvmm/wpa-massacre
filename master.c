@@ -8,7 +8,7 @@ void master(int fd_wordlist, int block_size)
   char *block = NULL;
   int *slave_table = NULL;
   int comm_size;
-  char password[MAXLEN];
+  char passphrase[MAXLEN];
   
   if ((block = malloc(block_size)) == NULL) {
     perror("malloc");
@@ -62,14 +62,14 @@ void master(int fd_wordlist, int block_size)
 	  /* collect busy slaves */
 	  for (i = 1; i < comm_size; ++i) {
 	    if (slave_table[i] == SLAVE_BUSY) {
-	      MPI_Probe(i+1, MPI_ANY_TAG, MPI_COMM_WORLD, &status_probe);
+	      MPI_Probe(i, MPI_ANY_TAG, MPI_COMM_WORLD, &status_probe);
 	      if (status_probe.MPI_TAG == TAG_REQUEST) {
 		MPI_Recv(&dummy, 1, MPI_INT, status_probe.MPI_SOURCE, status_probe.MPI_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 		fprintf(stderr, "slave %d finished\n",i);
 	      }
 	      else if (status_probe.MPI_TAG == TAG_PW) {
-		MPI_Recv(password, MAXLEN, MPI_CHAR, status_probe.MPI_SOURCE, status_probe.MPI_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		printf("rank %d found password\n%s\n", i, password);
+		MPI_Recv(passphrase, MAXLEN, MPI_CHAR, status_probe.MPI_SOURCE, status_probe.MPI_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		printf("rank %d found passphrase:\n%s\n", i, passphrase);
 		MPI_Abort(MPI_COMM_WORLD, 0);
 	      }
 	      else {
@@ -106,6 +106,9 @@ void master(int fd_wordlist, int block_size)
       }
       
       else if (status_probe.MPI_TAG == TAG_PW) {
+	MPI_Recv(passphrase, MAXLEN, MPI_CHAR, status_probe.MPI_SOURCE, status_probe.MPI_TAG, MPI_COMM_WORLD, &status_probe);
+	printf("rank %d found passphrase:\n%s\n",status_probe.MPI_SOURCE, passphrase);
+	MPI_Abort(MPI_COMM_WORLD, 1);
       }
     }
   }

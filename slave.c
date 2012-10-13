@@ -1,9 +1,9 @@
 #include "common.h"
 void slave(void) {
-  int fd_cap_file, fd_cache_file;
+  int fd_cap_file, fd_cache_file, fd_keyfile;
   int comm_rank, comm_size, len;
   int block_size;
-  char cap_file[MAXLEN], cache_prefix[MAXLEN], hostname[MAXLEN], cache_file[MAXLEN], cache_postfix[MAXLEN], key_file[MAXLEN];
+  char cap_file[MAXLEN], cache_prefix[MAXLEN], hostname[MAXLEN], cache_file[MAXLEN], cache_postfix[MAXLEN], key_file[MAXLEN], passphrase[MAXLEN];
   char *block = NULL;
   /* printf("pid = %d\n",getpid()); */
   /* sleep(10); */
@@ -84,15 +84,29 @@ void slave(void) {
     memcpy(&command[strlen(command)], key_file, strlen(key_file));
     memcpy(&command[strlen(command)], " ", 1);
     memcpy(&command[strlen(command)], cap_file, strlen(cap_file));
-    memcpy(&command[strlen(command)], " 1&>/dev/null", strlen(" 1&>/dev/null"));
+    memcpy(&command[strlen(command)], " 1>/dev/null 2>/dev/null", strlen(" 1>/dev/null 2>/dev/null"));
     fprintf(stderr, "command on rank %d: %s\n", comm_rank, command);
     unlink(key_file);
     system(command);
     if (!access(key_file, R_OK)) {
       /* found the passphrase */
-      /* send password to rank 0*/
-      fprintf(stderr, "found password on rank %d\n", comm_rank);
       
+      /* fprintf(stderr, "found password on rank %d\n", comm_rank); */
+      /* read passphrase from keyfile */
+      if ((fd_keyfile = open(key_file, O_RDONLY)) == -1) {
+	fprintf(stderr, "open keyfile: \n");
+	perror(NULL);
+	MPI_Abort(MPI_COMM_WORLD, 1);
+      }
+      len = read_failsafe(fd_keyfile, passphrase, MAXLEN);
+      if (len == -1) {
+	fprintf(stderr, "read keyfile: \n");
+	perror(NULL);
+      }
+      passphrase[len] = '\0';
+      /* send password to rank 0*/
+      MPI_Send(passphrase, MAXLEN, MPI_CHAR, 0, TAG_PW, MPI_COMM_WORLD);
+           
     }
 	      
   }
