@@ -1,6 +1,21 @@
+/* Copyright (C) 2012 wpa-massacre team */
+/* This file is part of wpa-massacre */
+/* wpa-massacre is free software: you can redistribute it and/or modify */
+/* it under the terms of the GNU General Public License as published by */
+/* the Free Software Foundation, either version 3 of the License, or */
+/* (at your option) any later version. */
+
+/* wpa-massacre is distributed in the hope that it will be useful, */
+/* but WITHOUT ANY WARRANTY; without even the implied warranty of */
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the */
+/* GNU General Public License for more details. */
+
+/* You should have received a copy of the GNU General Public License */
+/* along with this program.  If not, see <http://www.gnu.org/licenses/>. */
+
 #include "common.h"
 
-void master(int fd_wordlist, int block_size)
+void master(int fd_wordlist, int fd_key_file,  int block_size)
 /* read in wordlist and scatter it to the workers */
 {
   /* check for empty wordlist */
@@ -9,7 +24,8 @@ void master(int fd_wordlist, int block_size)
   int *slave_table = NULL;
   int comm_size;
   char passphrase[MAXLEN];
-  
+  struct timespec  started_read, finished_read ;
+  long read_time_nsec, j=0;
   if ((block = malloc(block_size)) == NULL) {
     perror("malloc");
     MPI_Abort(MPI_COMM_WORLD, 1);
@@ -46,16 +62,30 @@ void master(int fd_wordlist, int block_size)
       int i, dummy;
       MPI_Status status_probe;
       ssize_t read_bytes;
+      ++j;
+      if (j%comm_size == 0) {
+	started_read = finished_read;
+	if (clock_gettime (CLOCK_MONOTONIC, &finished_read) == -1) {
+	  perror("clock_gettime");
+	  MPI_Abort(MPI_COMM_WORLD, 1);
+	}
+	time_diff_nsec(&started_read, &finished_read, &read_time_nsec);
+	printf("time for cycle=%.10lf sec\n", (double)read_time_nsec / 1000000000 / comm_size);
+	printf("MB/sec = %lf\n", ((double) block_size / 1000000)/ comm_size / ((double) read_time_nsec/1000000000));
+      }
       MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status_probe);
       if (status_probe.MPI_TAG == TAG_REQUEST) {
 	MPI_Recv(&dummy, 1, MPI_INT, status_probe.MPI_SOURCE, status_probe.MPI_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 	slave_table[status_probe.MPI_SOURCE] = SLAVE_IDLE;
 	/* read in block and send to slave */
+
 	read_bytes = read_failsafe(fd_wordlist, block, block_size);
+
 	if (read_bytes == -1) {
 	  perror("reading wordlist");
 	  MPI_Abort(MPI_COMM_WORLD, 1);
 	}
+	
 	if (read_bytes == 0) {
 	  /* check for end of file */
 	  fprintf(stderr, "reached end of wordlist\nwaiting for slaves...\n");
@@ -108,9 +138,17 @@ void master(int fd_wordlist, int block_size)
       else if (status_probe.MPI_TAG == TAG_PW) {
 	MPI_Recv(passphrase, MAXLEN, MPI_CHAR, status_probe.MPI_SOURCE, status_probe.MPI_TAG, MPI_COMM_WORLD, &status_probe);
 	printf("rank %d found passphrase:\n%s\n",status_probe.MPI_SOURCE, passphrase);
+	if (write_failsafe(fd_key_file, passphrase, strlen(passphrase)) == -1) {
+	  perror("write to keyfile");
+	}
 	MPI_Abort(MPI_COMM_WORLD, 1);
       }
+      
     }
   }
-      
+   
+void time_diff_nsec(struct timespec *start, struct timespec *end, long *diff_nsec)
+{
+  *diff_nsec =  (long) end->tv_sec*1000000000 + end->tv_nsec - (long) start->tv_sec*1000000000 - start->tv_nsec;
+}
 

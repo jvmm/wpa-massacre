@@ -1,3 +1,17 @@
+/* Copyright (C) 2012 wpa-massacre team */
+/* This file is part of wpa-massacre */
+/* wpa-massacre is free software: you can redistribute it and/or modify */
+/* it under the terms of the GNU General Public License as published by */
+/* the Free Software Foundation, either version 3 of the License, or */
+/* (at your option) any later version. */
+
+/* wpa-massacre is distributed in the hope that it will be useful, */
+/* but WITHOUT ANY WARRANTY; without even the implied warranty of */
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the */
+/* GNU General Public License for more details. */
+
+/* You should have received a copy of the GNU General Public License */
+/* along with this program.  If not, see <http://www.gnu.org/licenses/>. */
 #include "common.h"
 
 
@@ -5,20 +19,21 @@ int
 main (int argc, char **argv)
 {
   int len;
-  int comm_rank, comm_size, fd_wordlist;
+  int comm_rank, comm_size, fd_wordlist, fd_keyfile;
   int block_size = 4096;
   char hostname[MAXLEN], wordlist[MAXLEN], cap_file[MAXLEN],
-    cache_prefix[MAXLEN];
+    cache_prefix[MAXLEN], key_file[MAXLEN];
   
   
   MPI_Init (&argc, &argv);
   MPI_Comm_rank (MPI_COMM_WORLD, &comm_rank);
   MPI_Comm_size (MPI_COMM_WORLD, &comm_size);
   MPI_Get_processor_name (hostname, &len);
-  /* defaults */
-  memcpy (wordlist, "password.lst", MAXLEN);
-  memcpy (cap_file, "wpa.cap", MAXLEN);
-  memcpy (cache_prefix, "./", MAXLEN);
+  /* set defaults */
+  memcpy (wordlist, "password.lst", strlen("password.lst") + 1);
+  memcpy (cap_file, "wpa.cap", strlen("wpa.cap") + 1);
+  memcpy (cache_prefix, "./", strlen("./") + 1);
+  memcpy (key_file, "key_file", strlen("key_file") + 1);
   /* rank 0 parses command-line arguments */
   if (comm_rank == 0)
     {
@@ -37,18 +52,19 @@ main (int argc, char **argv)
 	  static struct option long_options[] = {
 	    {"wordlist", required_argument, 0, 'w'},
 	    {"cap_file", required_argument, 0, 'c'},
-	    {"block_size", required_argument, 0, 'b'},
+	    {"block-size", required_argument, 0, 'b'},
 	    {"cache-prefix", required_argument, 0, 'p'},
+	    {"key-file", required_argument, 0, 'l'},
 	    {0, 0, 0, 0}
 	  };
 	  int option_index = 0;
-	  c = getopt_long (argc, argv, "w:c:b:p:", long_options, &option_index);
+	  c = getopt_long (argc, argv, "w:c:b:p:l:", long_options, &option_index);
 	  if (c == -1)
 	    break;
 	  switch (c)
 	    {
 	    case 'w':
-	      if (strlen(optarg) > MAXLEN) {
+	      if (strlen(optarg) > MAXLEN-1) {
 		fprintf(stderr, "pathname of wordlist too long\n");
 		MPI_Abort(MPI_COMM_WORLD, 1);
 	      }
@@ -56,18 +72,25 @@ main (int argc, char **argv)
 	      memcpy(wordlist, optarg, strlen(optarg)+1);
 	      break;
 	    case 'c':
-	      if (strlen(optarg) > MAXLEN) {
+	      if (strlen(optarg) > MAXLEN-1) {
 		fprintf(stderr, "pathname of .cap file too long\n");
 		MPI_Abort(MPI_COMM_WORLD, 1);
 	      }
 	      memcpy(cap_file, optarg, strlen(optarg)+1);
 	      break;
 	    case 'p':
-	      if (strlen(optarg) > MAXLEN) {
+	      if (strlen(optarg) > MAXLEN-1) {
 		fprintf(stderr, "cache-prefix too long\n");
 		MPI_Abort(MPI_COMM_WORLD, 1);
 	      }
 	      memcpy(cache_prefix, optarg, strlen(optarg)+1);
+	      break;
+	    case 'l':
+	      if (strlen(optarg) > MAXLEN-1) {
+		fprintf(stderr, "pathname of key-file too long\n");
+		MPI_Abort(MPI_COMM_WORLD, 1);
+	      }
+	      memcpy(key_file, optarg, strlen(optarg)+1);
 	      break;
 	    case 'b':
 	      errno = 0;
@@ -97,6 +120,11 @@ main (int argc, char **argv)
 	perror(NULL);
 	MPI_Abort(MPI_COMM_WORLD, 1);
       }
+      if ((fd_keyfile = creat(key_file, 0600)) == -1) {
+	fprintf(stderr, "%s ", wordlist);
+	perror(NULL);
+	MPI_Abort(MPI_COMM_WORLD, 1);
+      }
       printf("using block size %d\n",  block_size);
     }
   /* dispatch  */
@@ -107,7 +135,7 @@ main (int argc, char **argv)
       MPI_Bcast(cache_prefix, MAXLEN, MPI_CHAR, 0, MPI_COMM_WORLD);
       MPI_Bcast(&block_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-      master(fd_wordlist, block_size);
+      master(fd_wordlist, fd_keyfile, block_size);
     }
   else
     {
@@ -149,6 +177,12 @@ ssize_t write_failsafe (int fd, void *buf, size_t len)
       if (ret == -1)
 	{
 	  if (errno == EINTR)
-	    continue; perror ("write_failsafe"); return ret;}
-      len_tmp -= ret; buf_tmp += ret;}
-  return len - len_tmp;}
+	    continue; 
+	  perror ("write_failsafe"); 
+	  return ret;
+	}
+      len_tmp -= ret; 
+      buf_tmp += ret;
+    }
+  return len - len_tmp;
+}

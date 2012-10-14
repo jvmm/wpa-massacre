@@ -1,3 +1,18 @@
+/* Copyright (C) 2012 wpa-massacre team */
+/* This file is part of wpa-massacre */
+/* wpa-massacre is free software: you can redistribute it and/or modify */
+/* it under the terms of the GNU General Public License as published by */
+/* the Free Software Foundation, either version 3 of the License, or */
+/* (at your option) any later version. */
+
+/* wpa-massacre is distributed in the hope that it will be useful, */
+/* but WITHOUT ANY WARRANTY; without even the implied warranty of */
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the */
+/* GNU General Public License for more details. */
+
+/* You should have received a copy of the GNU General Public License */
+/* along with this program.  If not, see <http://www.gnu.org/licenses/>. */
+
 #include "common.h"
 void slave(void) {
   int fd_cap_file, fd_cache_file, fd_keyfile;
@@ -24,11 +39,11 @@ void slave(void) {
     perror(NULL);
   }
   /* compose the name of the cache file for this rank */
-  memcpy(&cache_prefix[strlen(cache_prefix)], "cache-file-", strlen("cache-file-"));
+  memcpy(&cache_prefix[strlen(cache_prefix)], "cache-file-", strlen("cache-file-")+1);
   memset(cache_file, '\0', MAXLEN);
   memcpy(cache_file, cache_prefix, strlen(cache_prefix));
   sprintf(cache_postfix, "%d", comm_rank);
-  memcpy(&cache_file[strlen(cache_prefix)], cache_postfix, strlen(cache_postfix) + 1); /* we need the "+1" for the trailing null character */
+  memcpy(&cache_file[strlen(cache_file)], cache_postfix, strlen(cache_postfix));
   fprintf(stderr, "full path to cache file on rank %d is\n%s\n", comm_rank, cache_file);
   
   if ((fd_cache_file = creat(cache_file, 0600)) == -1) {
@@ -98,12 +113,13 @@ void slave(void) {
 	perror(NULL);
 	MPI_Abort(MPI_COMM_WORLD, 1);
       }
+      memset(passphrase, '\0', MAXLEN);
       len = read_failsafe(fd_keyfile, passphrase, MAXLEN);
       if (len == -1) {
 	fprintf(stderr, "read keyfile: \n");
 	perror(NULL);
       }
-      passphrase[len] = '\0';
+      passphrase[len] = '\n';
       /* send password to rank 0*/
       MPI_Send(passphrase, MAXLEN, MPI_CHAR, 0, TAG_PW, MPI_COMM_WORLD);
            

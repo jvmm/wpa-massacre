@@ -1,5 +1,5 @@
 a.out : main.o slave.o master.o 
-	mpicc -g -Wall main.o slave.o master.o
+	mpicc -g -Wall main.o slave.o master.o -lrt
 main.o : main.c common.h
 	mpicc -c -g -Wall main.c
 slave.o : slave.c common.h
