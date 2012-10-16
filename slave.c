@@ -103,10 +103,10 @@ void slave(void) {
     fprintf(stderr, "command on rank %d: %s\n", comm_rank, command);
     unlink(key_file);
     system(command);
-    if (!access(key_file, R_OK)) {
+    if (!access(key_file, R_OK) ) {
       /* found the passphrase */
       
-      /* fprintf(stderr, "found password on rank %d\n", comm_rank); */
+      fprintf(stderr, "found password on rank %d\n", comm_rank); 
       /* read passphrase from keyfile */
       if ((fd_keyfile = open(key_file, O_RDONLY)) == -1) {
 	fprintf(stderr, "open keyfile: \n");

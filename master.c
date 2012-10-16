@@ -18,7 +18,7 @@
 void master(int fd_wordlist, int fd_key_file,  int block_size)
 /* read in wordlist and scatter it to the workers */
 {
-  /* check for empty wordlist */
+
   off_t size_of_wordlist;
   char *block = NULL;
   int *slave_table = NULL;
@@ -36,13 +36,14 @@ void master(int fd_wordlist, int fd_key_file,  int block_size)
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
   memset(slave_table, SLAVE_IDLE, comm_size*sizeof(int));
+  /* check for empty wordlist */
   if ((size_of_wordlist = lseek(fd_wordlist, 0, SEEK_END)) ==  -1) {
     perror("lseek");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
   else {
     if (size_of_wordlist == 0) {
-      fprintf(stderr, "wordlist is empty!\n");
+      fprintf(stderr, "error: wordlist is empty!\n");
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
     else {
@@ -87,7 +88,7 @@ void master(int fd_wordlist, int fd_key_file,  int block_size)
 	}
 	
 	if (read_bytes == 0) {
-	  /* check for end of file */
+	  
 	  fprintf(stderr, "reached end of wordlist\nwaiting for slaves...\n");
 	  /* collect busy slaves */
 	  for (i = 1; i < comm_size; ++i) {
@@ -100,6 +101,9 @@ void master(int fd_wordlist, int fd_key_file,  int block_size)
 	      else if (status_probe.MPI_TAG == TAG_PW) {
 		MPI_Recv(passphrase, MAXLEN, MPI_CHAR, status_probe.MPI_SOURCE, status_probe.MPI_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 		printf("rank %d found passphrase:\n%s\n", i, passphrase);
+		if (write_failsafe(fd_key_file, passphrase, strlen(passphrase)) == -1) {
+		  perror("write to keyfile");
+		}
 		MPI_Abort(MPI_COMM_WORLD, 0);
 	      }
 	      else {
@@ -132,7 +136,7 @@ void master(int fd_wordlist, int fd_key_file,  int block_size)
 	}
 	/* now we know that we only want to send i+1 bytes */
 	MPI_Send(block, i+1, MPI_CHAR, status_probe.MPI_SOURCE, 1, MPI_COMM_WORLD);
-	slave_table[status_probe.MPI_SOURCE - 1] = SLAVE_BUSY;
+	slave_table[status_probe.MPI_SOURCE] = SLAVE_BUSY;
       }
       
       else if (status_probe.MPI_TAG == TAG_PW) {
